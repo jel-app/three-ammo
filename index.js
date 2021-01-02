@@ -119,6 +119,19 @@ export const WorkerHelpers = function(ammoWorker) {
     });
   };
 
+  const applyImpulse = function(uuid, x, y, z, rx = 0, ry = 0, rz = 0) {
+    ammoWorker.postMessage({
+      type: MESSAGE_TYPES.APPLY_IMPULSE,
+      uuid,
+      x,
+      y,
+      z,
+      rx,
+      ry,
+      rz
+    });
+  };
+
   return {
     addBody,
     updateBody,
@@ -129,6 +142,7 @@ export const WorkerHelpers = function(ammoWorker) {
     removeConstraint,
     enableDebug,
     resetDynamicBody,
-    activateBody
+    activateBody,
+    applyImpulse
   };
 };

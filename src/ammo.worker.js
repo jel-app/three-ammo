@@ -39,6 +39,9 @@ const matrices = {};
 const indexes = {};
 const ptrToIndex = {};
 
+let tempVec3_1 = null,
+  tempVec3_2 = null;
+
 const messageQueue = [];
 
 let simulationRate;
@@ -104,6 +107,11 @@ const tick = () => {
           break;
         case MESSAGE_TYPES.ACTIVATE_BODY:
           activateBody(message);
+          break;
+        case MESSAGE_TYPES.APPLY_IMPULSE:
+          console.log(message);
+          applyImpulse(message);
+          break;
       }
     }
 
@@ -304,6 +312,18 @@ function activateBody({ uuid }) {
   }
 }
 
+function applyImpulse({ uuid, x, y, z, rx, ry, rz }) {
+  if (bodies[uuid]) {
+    const physicsBody = bodies[uuid].physicsBody;
+
+    tempVec3_1.setValue(x, y, z);
+    tempVec3_2.setValue(rx, ry, rz);
+
+    physicsBody.applyImpulse(tempVec3_1, tempVec3_2);
+    physicsBody.activate();
+  }
+}
+
 onmessage = async event => {
   if (event.data.type === MESSAGE_TYPES.INIT) {
     const AmmoModule = initializeWasm(event.data.wasmUrl);
@@ -312,6 +332,8 @@ onmessage = async event => {
       getPointer = Ammo.getPointer;
 
       const maxBodies = event.data.maxBodies ? event.data.maxBodies : BUFFER_CONFIG.MAX_BODIES;
+      tempVec3_1 = new Ammo.btVector3(0, 0, 0);
+      tempVec3_2 = new Ammo.btVector3(0, 0, 0);
 
       freeIndexArray = new Int32Array(maxBodies);
       for (let i = 0; i < maxBodies - 1; i++) {
@@ -417,15 +439,11 @@ onmessage = async event => {
         break;
       }
 
-      case MESSAGE_TYPES.RESET_DYNAMIC_BODY: {
+      case MESSAGE_TYPES.RESET_DYNAMIC_BODY:
+      case MESSAGE_TYPES.APPLY_IMPULSE:
+      case MESSAGE_TYPES.ACTIVATE_BODY:
         messageQueue.push(event.data);
         break;
-      }
-
-      case MESSAGE_TYPES.ACTIVATE_BODY: {
-        messageQueue.push(event.data);
-        break;
-      }
     }
   } else {
     console.error("Error: World Not Initialized", event.data);
