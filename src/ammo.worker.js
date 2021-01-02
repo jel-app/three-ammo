@@ -109,7 +109,6 @@ const tick = () => {
           activateBody(message);
           break;
         case MESSAGE_TYPES.APPLY_IMPULSE:
-          console.log(message);
           applyImpulse(message);
           break;
       }
