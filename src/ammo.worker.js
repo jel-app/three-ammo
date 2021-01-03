@@ -146,7 +146,12 @@ const tick = () => {
       if (isDynamic) {
         if (body.initialSyncCount === 1) {
           // Initial transform now set by host process for body which starts as dynamic. Initialize the body.
-          resetDynamicBody({ uuid });
+          matrices[uuid].fromArray(
+            objectMatricesFloatArray,
+            index * BUFFER_CONFIG.BODY_DATA_SIZE + BUFFER_CONFIG.MATRIX_OFFSET
+          );
+
+          body.syncToPhysics(true);
         } else {
           // Dynamic body is now active and initialized, let physics engine drive its behavior.
           body.syncFromPhysics();
@@ -294,14 +299,9 @@ function addConstraint({ constraintId, bodyUuid, targetUuid, options }) {
 function resetDynamicBody({ uuid }) {
   if (bodies[uuid]) {
     const body = bodies[uuid];
-    const index = indexes[uuid];
-    matrices[uuid].fromArray(
-      objectMatricesFloatArray,
-      index * BUFFER_CONFIG.BODY_DATA_SIZE + BUFFER_CONFIG.MATRIX_OFFSET
-    );
-    body.syncToPhysics(true);
     body.physicsBody.getLinearVelocity().setValue(0, 0, 0);
     body.physicsBody.getAngularVelocity().setValue(0, 0, 0);
+    body.initialSyncCount = 0;
   }
 }
 
