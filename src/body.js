@@ -193,15 +193,15 @@ Body.prototype.updateShapes = (function() {
  */
 Body.prototype.update = function(bodyConfig) {
   if (
-    (bodyConfig.type && bodyConfig.type !== this.type) ||
-    (bodyConfig.disableCollision && bodyConfig.disableCollision !== this.disableCollision)
+    (bodyConfig.type !== undefined && bodyConfig.type !== this.type) ||
+    (bodyConfig.disableCollision !== undefined && bodyConfig.disableCollision !== this.disableCollision)
   ) {
-    if (bodyConfig.type) this.type = bodyConfig.type;
-    if (bodyConfig.disableCollision) this.disableCollision = bodyConfig.disableCollision;
+    if (bodyConfig.type !== undefined) this.type = bodyConfig.type;
+    if (bodyConfig.disableCollision !== undefined) this.disableCollision = bodyConfig.disableCollision;
     this.updateCollisionFlags();
   }
 
-  if (bodyConfig.activationState && bodyConfig.activationState !== this.activationState) {
+  if (bodyConfig.activationState !== undefined && bodyConfig.activationState !== this.activationState) {
     this.activationState = bodyConfig.activationState;
     this.physicsBody.forceActivationState(ACTIVATION_STATES.indexOf(this.activationState) + 1);
     if (this.activationState === ACTIVATION_STATE.ACTIVE_TAG) {
@@ -210,11 +210,11 @@ Body.prototype.update = function(bodyConfig) {
   }
 
   if (
-    (bodyConfig.collisionFilterGroup && bodyConfig.collisionFilterGroup !== this.collisionFilterGroup) ||
-    (bodyConfig.collisionFilterMask && bodyConfig.collisionFilterMask !== this.collisionFilterMask)
+    (bodyConfig.collisionFilterGroup !== undefined && bodyConfig.collisionFilterGroup !== this.collisionFilterGroup) ||
+    (bodyConfig.collisionFilterMask !== undefined && bodyConfig.collisionFilterMask !== this.collisionFilterMask)
   ) {
-    if (bodyConfig.collisionFilterGroup) this.collisionFilterGroup = bodyConfig.collisionFilterGroup;
-    if (bodyConfig.collisionFilterMask) this.collisionFilterMask = bodyConfig.collisionFilterMask;
+    if (bodyConfig.collisionFilterGroup !== undefined) this.collisionFilterGroup = bodyConfig.collisionFilterGroup;
+    if (bodyConfig.collisionFilterMask !== undefined) this.collisionFilterMask = bodyConfig.collisionFilterMask;
     const broadphaseProxy = this.physicsBody.getBroadphaseProxy();
     broadphaseProxy.set_m_collisionFilterGroup(this.collisionFilterGroup);
     broadphaseProxy.set_m_collisionFilterMask(this.collisionFilterMask);
@@ -224,15 +224,15 @@ Body.prototype.update = function(bodyConfig) {
   }
 
   if (
-    (bodyConfig.linearDamping && bodyConfig.linearDamping != this.linearDamping) ||
-    (bodyConfig.angularDamping && bodyConfig.angularDamping != this.angularDamping)
+    (bodyConfig.linearDamping !== undefined && bodyConfig.linearDamping != this.linearDamping) ||
+    (bodyConfig.angularDamping !== undefined && bodyConfig.angularDamping != this.angularDamping)
   ) {
-    if (bodyConfig.linearDamping) this.linearDamping = bodyConfig.linearDamping;
-    if (bodyConfig.angularDamping) this.angularDamping = bodyConfig.angularDamping;
+    if (bodyConfig.linearDamping !== undefined) this.linearDamping = bodyConfig.linearDamping;
+    if (bodyConfig.angularDamping !== undefined) this.angularDamping = bodyConfig.angularDamping;
     this.physicsBody.setDamping(this.linearDamping, this.angularDamping);
   }
 
-  if (bodyConfig.gravity) {
+  if (bodyConfig.gravity !== undefined) {
     this.gravity.setValue(bodyConfig.gravity.x, bodyConfig.gravity.y, bodyConfig.gravity.z);
     if (!almostEqualsBtVector3(0.001, this.gravity, this.physicsBody.getGravity())) {
       if (!almostEqualsBtVector3(0.001, this.gravity, this.world.physicsWorld.getGravity())) {
@@ -245,15 +245,22 @@ Body.prototype.update = function(bodyConfig) {
   }
 
   if (
-    (bodyConfig.linearSleepingThreshold && bodyConfig.linearSleepingThreshold != this.linearSleepingThreshold) ||
-    (bodyConfig.angularSleepingThreshold && bodyConfig.angularSleepingThreshold != this.angularSleepingThreshold)
+    (bodyConfig.linearSleepingThreshold !== undefined &&
+      bodyConfig.linearSleepingThreshold != this.linearSleepingThreshold) ||
+    (bodyConfig.angularSleepingThreshold !== undefined &&
+      bodyConfig.angularSleepingThreshold != this.angularSleepingThreshold)
   ) {
-    if (bodyConfig.linearSleepingThreshold) this.linearSleepingThreshold = bodyConfig.linearSleepingThreshold;
-    if (bodyConfig.angularSleepingThreshold) this.angularSleepingThreshold = bodyConfig.angularSleepingThreshold;
+    if (bodyConfig.linearSleepingThreshold !== undefined)
+      this.linearSleepingThreshold = bodyConfig.linearSleepingThreshold;
+    if (bodyConfig.angularSleepingThreshold !== undefined)
+      this.angularSleepingThreshold = bodyConfig.angularSleepingThreshold;
     this.physicsBody.setSleepingThresholds(this.linearSleepingThreshold, this.angularSleepingThreshold);
   }
 
-  if (bodyConfig.angularFactor && !almostEqualsVector3(0.001, bodyConfig.angularFactor, this.angularFactor)) {
+  if (
+    bodyConfig.angularFactor !== undefined &&
+    !almostEqualsVector3(0.001, bodyConfig.angularFactor, this.angularFactor)
+  ) {
     this.angularFactor.copy(bodyConfig.angularFactor);
     const angularFactor = new Ammo.btVector3(this.angularFactor.x, this.angularFactor.y, this.angularFactor.z);
     this.physicsBody.setAngularFactor(angularFactor);
