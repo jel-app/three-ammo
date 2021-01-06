@@ -51,7 +51,7 @@ export const WorkerHelpers = function(ammoWorker) {
         vertices,
         matrices,
         indexes,
-        matrixWorld: mesh.matrixWorld.elements,
+        matrixWorld: mesh.matrix.elements,
         options
       });
     } else {
