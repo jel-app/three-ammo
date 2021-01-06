@@ -31,10 +31,6 @@ export const WorkerHelpers = function(ammoWorker) {
 
   const addShapes = function(bodyUuid, shapesUuid, mesh, options = {}) {
     if (mesh) {
-      mesh.updateMatrixWorld(true);
-
-      inverse.getInverse(mesh.parent.matrix);
-      transform.multiplyMatrices(inverse, mesh.parent.matrix);
       const vertices = [];
       const matrices = [];
       const indexes = [];
@@ -44,6 +40,8 @@ export const WorkerHelpers = function(ammoWorker) {
         matrices.push(matrix);
         indexes.push(index);
       });
+
+      mesh.updateMatrix();
 
       ammoWorker.postMessage({
         type: MESSAGE_TYPES.ADD_SHAPES,
