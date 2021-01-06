@@ -137,7 +137,10 @@ const tick = () => {
       // If body starts out as dynamic (ie its initial sync count is zero but it is marked as dynamic)
       // wait a tick so host process can set its initial transform before physics starts driving it.
       if (isTrackingInitialSyncs && isDynamic && body.initialSyncCount === 0) {
-        body.initialSyncCount++;
+        if (body.activationState === CONSTANTS.ACTIVATION_STATE.ACTIVE_TAG) {
+          body.initialSyncCount++;
+        }
+
         continue;
       }
 
@@ -259,7 +262,10 @@ function addBody({ uuid, matrix, options }) {
 function updateBody({ uuid, options }) {
   if (bodies[uuid]) {
     bodies[uuid].update(options);
-    bodies[uuid].physicsBody.activate(true);
+
+    if (options.activationState === undefined) {
+      bodies[uuid].physicsBody.activate(true);
+    }
   }
 }
 
