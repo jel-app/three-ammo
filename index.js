@@ -31,13 +31,14 @@ export const WorkerHelpers = function(ammoWorker) {
 
   const addShapes = function(bodyUuid, shapesUuid, mesh, options = {}) {
     if (mesh) {
+      mesh.updateMatrixWorld(true);
+
       inverse.getInverse(mesh.parent.matrix);
       transform.multiplyMatrices(inverse, mesh.parent.matrix);
       const vertices = [];
       const matrices = [];
       const indexes = [];
 
-      mesh.updateMatrixWorld(true);
       iterateGeometries(mesh, options, (vertexArray, matrix, index) => {
         vertices.push(vertexArray);
         matrices.push(matrix);
