@@ -136,7 +136,7 @@ const tick = () => {
 
       // If body starts out as dynamic (ie its initial sync count is zero but it is marked as dynamic)
       // wait a tick so host process can set its initial transform before physics starts driving it.
-      if (isTrackingInitialSyncs && isDynamic && body.initialSyncCount === 0) {
+      if (body.initialSyncCount === 0 && isDynamic) {
         if (body.activationState === CONSTANTS.ACTIVATION_STATE.ACTIVE_TAG) {
           body.initialSyncCount++;
         }
