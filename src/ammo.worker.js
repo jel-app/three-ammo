@@ -177,15 +177,18 @@ const tick = () => {
       ] = body.physicsBody.getAngularVelocity().length();
 
       const ptr = getPointer(body.physicsBody);
+
       const collisions = world.collisions.get(ptr);
       for (let j = 0; j < BUFFER_CONFIG.BODY_DATA_SIZE - BUFFER_CONFIG.COLLISIONS_OFFSET; j++) {
-        if (!collisions || j >= collisions.length) {
+        if (!collisions || j >= collisions.length || (isDynamic && isTrackingInitialSyncs)) {
           objectMatricesIntArray[index * BUFFER_CONFIG.BODY_DATA_SIZE + BUFFER_CONFIG.COLLISIONS_OFFSET + j] = -1;
         } else {
           const collidingPtr = collisions[j];
           if (ptrToIndex[collidingPtr]) {
             objectMatricesIntArray[index * BUFFER_CONFIG.BODY_DATA_SIZE + BUFFER_CONFIG.COLLISIONS_OFFSET + j] =
               ptrToIndex[collidingPtr];
+          } else {
+            objectMatricesIntArray[index * BUFFER_CONFIG.BODY_DATA_SIZE + BUFFER_CONFIG.COLLISIONS_OFFSET + j] = -1;
           }
         }
       }
@@ -239,6 +242,11 @@ function addBody({ uuid, matrix, options }) {
     matrices[uuid] = transform;
 
     objectMatricesFloatArray.set(transform.elements, freeIndex * BUFFER_CONFIG.BODY_DATA_SIZE);
+    objectMatricesIntArray.fill(
+      -1,
+      freeIndex * BUFFER_CONFIG.BODY_DATA_SIZE + BUFFER_CONFIG.COLLISIONS_OFFSET,
+      BUFFER_CONFIG.BODY_DATA_SIZE - BUFFER_CONFIG.COLLISIONS_OFFSET
+    );
     bodies[uuid] = new Body(options || {}, transform, world);
     const ptr = getPointer(bodies[uuid].physicsBody);
     ptrToIndex[ptr] = freeIndex;
