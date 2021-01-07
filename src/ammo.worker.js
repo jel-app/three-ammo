@@ -2,6 +2,7 @@ import CONSTANTS from "../constants.js";
 const MESSAGE_TYPES = CONSTANTS.MESSAGE_TYPES;
 const TYPE = CONSTANTS.TYPE;
 const SHAPE = CONSTANTS.SHAPE;
+const FIT = CONSTANTS.FIT;
 const CONSTRAINT = CONSTANTS.CONSTRAINT;
 const BUFFER_CONFIG = CONSTANTS.BUFFER_CONFIG;
 const BUFFER_STATE = CONSTANTS.BUFFER_STATE;
@@ -43,6 +44,9 @@ let tempVec3_1 = null,
   tempVec3_2 = null;
 
 const messageQueue = [];
+
+const tmpMatrix = new THREE.Matrix4();
+const tmpVec3 = new THREE.Vector3(1, 1, 1);
 
 let simulationRate;
 
@@ -98,6 +102,9 @@ const tick = () => {
           break;
         case MESSAGE_TYPES.ADD_SHAPES:
           addShapes(message);
+          break;
+        case MESSAGE_TYPES.UPDATE_SHAPES_SCALE:
+          updateShapesScale(message);
           break;
         case MESSAGE_TYPES.ADD_CONSTRAINT:
           addConstraint(message);
@@ -299,6 +306,21 @@ function addShapes({ bodyUuid, shapesUuid, vertices, matrices, indexes, matrixWo
   shapes[shapesUuid] = physicsShapes;
 }
 
+function updateShapesScale({ shapesUuid, matrixWorld, options }) {
+  if (!tempVec3_1) return;
+
+  if (options.fit === FIT.ALL) {
+    tmpMatrix.fromArray(matrixWorld);
+    tmpVec3.setFromMatrixScale(tmpMatrix);
+  }
+  const physicsShapes = shapes[shapesUuid];
+  tempVec3_1.setValue(tmpVec3.x, tmpVec3.y, tmpVec3.z);
+  for (let i = 0; i < physicsShapes.length; i++) {
+    const shape = physicsShapes[i];
+    shape.setLocalScaling(tempVec3_1);
+  }
+}
+
 function addConstraint({ constraintId, bodyUuid, targetUuid, options }) {
   if (bodies[bodyUuid] && bodies[targetUuid]) {
     options = options || {};
@@ -412,6 +434,16 @@ onmessage = async event => {
             const shape = shapes[shapesUuid][i];
             bodies[bodyUuid].removeShape(shape);
           }
+        }
+        break;
+      }
+
+      case MESSAGE_TYPES.UPDATE_SHAPES_SCALE: {
+        const shapesUuid = event.data.shapesUuid;
+        if (shapes[shapesUuid]) {
+          updateShapesScale(event.data);
+        } else {
+          messageQueue.push(event.data);
         }
         break;
       }

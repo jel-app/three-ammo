@@ -41,7 +41,7 @@ export const WorkerHelpers = function(ammoWorker) {
         indexes.push(index);
       });
 
-      mesh.updateMatrix();
+      mesh.updateMatrices();
 
       ammoWorker.postMessage({
         type: MESSAGE_TYPES.ADD_SHAPES,
@@ -50,7 +50,7 @@ export const WorkerHelpers = function(ammoWorker) {
         vertices,
         matrices,
         indexes,
-        matrixWorld: mesh.matrix.elements,
+        matrixWorld: mesh.matrixWorld.elements,
         options
       });
     } else {
@@ -61,6 +61,15 @@ export const WorkerHelpers = function(ammoWorker) {
         options
       });
     }
+  };
+
+  const updateShapesScale = function(shapesUuid, matrixWorld, options = {}) {
+    ammoWorker.postMessage({
+      type: MESSAGE_TYPES.UPDATE_SHAPES_SCALE,
+      shapesUuid,
+      matrixWorld,
+      options
+    });
   };
 
   const removeShapes = function(bodyUuid, shapesUuid) {
@@ -137,6 +146,7 @@ export const WorkerHelpers = function(ammoWorker) {
     removeBody,
     addShapes,
     removeShapes,
+    updateShapesScale,
     addConstraint,
     removeConstraint,
     enableDebug,
