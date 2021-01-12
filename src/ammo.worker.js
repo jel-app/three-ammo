@@ -308,12 +308,14 @@ function addShapes({ bodyUuid, shapesUuid, vertices, matrices, indexes, matrixWo
 
 function updateShapesScale({ shapesUuid, matrixWorld, options }) {
   if (!tempVec3_1) return;
+  const physicsShapes = shapes[shapesUuid];
+  if (!physicsShapes) return;
 
   if (options.fit === FIT.ALL) {
     tmpMatrix.fromArray(matrixWorld);
     tmpVec3.setFromMatrixScale(tmpMatrix);
   }
-  const physicsShapes = shapes[shapesUuid];
+
   tempVec3_1.setValue(tmpVec3.x, tmpVec3.y, tmpVec3.z);
   for (let i = 0; i < physicsShapes.length; i++) {
     const shape = physicsShapes[i];
