@@ -354,6 +354,28 @@ Body.prototype.syncFromPhysics = (function() {
   };
 })();
 
+// Pass in a list of collision shapes and efficiently set them on this body.
+Body.prototype.setShapes = function(collisionShapes) {
+  for (let i = 0; i < this.shapes.length; i++) {
+    this.compoundShape.removeChildShape(this.shapes[i]);
+  }
+
+  this.shapes.length = 0;
+
+  for (const collisionShape of collisionShapes) {
+    if (collisionShape.type === SHAPE.MESH && this.type !== TYPE.STATIC) {
+      console.warn("non-static mesh colliders not supported");
+      continue;
+    }
+
+    this.shapes.push(collisionShape);
+    this.compoundShape.addChildShape(collisionShape.localTransform, collisionShape);
+  }
+
+  this.shapesChanged = true;
+  this.updateShapes();
+};
+
 Body.prototype.addShape = function(collisionShape) {
   if (collisionShape.type === SHAPE.MESH && this.type !== TYPE.STATIC) {
     console.warn("non-static mesh colliders not supported");

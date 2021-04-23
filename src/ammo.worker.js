@@ -103,6 +103,15 @@ const tick = () => {
         case MESSAGE_TYPES.ADD_SHAPES:
           addShapes(message);
           break;
+        case MESSAGE_TYPES.SET_SHAPES:
+          const { shapesUuid, bodyUuids } = message;
+
+          for (const bodyUuid of bodyUuids) {
+            if (bodies[bodyUuid]) {
+              setShapes(bodyUuid, message);
+            }
+          }
+          break;
         case MESSAGE_TYPES.UPDATE_SHAPES_SCALE:
           updateShapesScale(message);
           break;
@@ -291,14 +300,32 @@ function removeBody({ uuid }) {
 
 const IDENTITY_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
+function createShapes({ shapesUuid, vertices, matrices, indexes, matrixWorld, options }) {
+  shapes[shapesUuid] = createCollisionShapes(
+    vertices,
+    matrices,
+    indexes,
+    matrixWorld || IDENTITY_MATRIX,
+    options || { type: SHAPE.BOX }
+  );
+}
+
+function setShapes(bodyUuid, { shapesUuid }) {
+  const physicsShapes = shapes[shapesUuid];
+  const body = bodies[bodyUuid];
+  body.setShapes(physicsShapes);
+}
+
 function addShapes({ bodyUuid, shapesUuid, vertices, matrices, indexes, matrixWorld, options }) {
   if (!bodies[bodyUuid]) return;
 
-  if (!matrixWorld) {
-    matrixWorld = IDENTITY_MATRIX;
-  }
-
-  const physicsShapes = createCollisionShapes(vertices, matrices, indexes, matrixWorld, options || { type: SHAPE.BOX });
+  const physicsShapes = createCollisionShapes(
+    vertices,
+    matrices,
+    indexes,
+    matrixWorld || IDENTITY_MATRIX,
+    options || { type: SHAPE.BOX }
+  );
   for (let i = 0; i < physicsShapes.length; i++) {
     const shape = physicsShapes[i];
     bodies[bodyUuid].addShape(shape);
@@ -425,6 +452,39 @@ onmessage = async event => {
         } else {
           messageQueue.push(event.data);
         }
+        break;
+      }
+
+      case MESSAGE_TYPES.CREATE_SHAPES: {
+        createShapes(event.data);
+        break;
+      }
+
+      case MESSAGE_TYPES.SET_SHAPES: {
+        const { shapesUuid, bodyUuids } = event.data;
+
+        if (!shapes[shapesUuid]) {
+          messageQueue.push(event.data);
+        } else {
+          let missingBodyUuids = null;
+
+          for (const bodyUuid of bodyUuids) {
+            if (bodies[bodyUuid]) {
+              setShapes(bodyUuid, event.data);
+            } else {
+              if (missingBodyUuids === null) {
+                missingBodyUuids = new Set();
+              }
+
+              missingBodyUuids.add(bodyUuid);
+            }
+          }
+
+          if (missingBodyUuids !== null) {
+            messageQueue.push({ ...event.data, bodyUuids: missingBodyUuids });
+          }
+        }
+
         break;
       }
 
