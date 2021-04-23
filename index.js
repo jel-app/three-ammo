@@ -63,12 +63,43 @@ export const WorkerHelpers = function(ammoWorker) {
     }
   };
 
-  const updateShapesScale = function(shapesUuid, matrixWorld, options = {}) {
+  const createShapes = function(shapesUuid, mesh, options = {}) {
+    if (mesh) {
+      const vertices = [];
+      const matrices = [];
+      const indexes = [];
+
+      iterateGeometries(mesh, options, (vertexArray, matrix, index) => {
+        vertices.push(vertexArray);
+        matrices.push(matrix);
+        indexes.push(index);
+      });
+
+      mesh.updateMatrices();
+
+      ammoWorker.postMessage({
+        type: MESSAGE_TYPES.CREATE_SHAPES,
+        shapesUuid,
+        vertices,
+        matrices,
+        indexes,
+        matrixWorld: mesh.matrixWorld.elements,
+        options
+      });
+    } else {
+      ammoWorker.postMessage({
+        type: MESSAGE_TYPES.CREATE_SHAPES,
+        shapesUuid,
+        options
+      });
+    }
+  };
+
+  const setShapes = function(bodyUuids, shapesUuid) {
     ammoWorker.postMessage({
-      type: MESSAGE_TYPES.UPDATE_SHAPES_SCALE,
-      shapesUuid,
-      matrixWorld,
-      options
+      type: MESSAGE_TYPES.SET_SHAPES,
+      bodyUuids,
+      shapesUuid
     });
   };
 
@@ -77,6 +108,22 @@ export const WorkerHelpers = function(ammoWorker) {
       type: MESSAGE_TYPES.REMOVE_SHAPES,
       bodyUuid,
       shapesUuid
+    });
+  };
+
+  const destroyShapes = function(shapesUuid) {
+    ammoWorker.postMessage({
+      type: MESSAGE_TYPES.DESTROY_SHAPES,
+      shapesUuid
+    });
+  };
+
+  const updateShapesScale = function(shapesUuid, matrixWorld, options = {}) {
+    ammoWorker.postMessage({
+      type: MESSAGE_TYPES.UPDATE_SHAPES_SCALE,
+      shapesUuid,
+      matrixWorld,
+      options
     });
   };
 
@@ -145,7 +192,10 @@ export const WorkerHelpers = function(ammoWorker) {
     updateBody,
     removeBody,
     addShapes,
+    createShapes,
+    setShapes,
     removeShapes,
+    destroyShapes,
     updateShapesScale,
     addConstraint,
     removeConstraint,

@@ -40,6 +40,13 @@ const matrices = {};
 const indexes = {};
 const ptrToIndex = {};
 
+// Map of body uuid -> shapes uuid that created + added via ADD_SHAPE, so there is a one
+// to one relationship between shapes and the body.
+//
+// If the caller users CREATE_SHAPES/SET_SHAPES to assign the same shape to multiple bodies, then
+// they must also call DESTROY_SHAPES on the relevant shapes when finished.
+const singleBodyShapes = new Map();
+
 let tempVec3_1 = null,
   tempVec3_2 = null;
 
@@ -56,7 +63,14 @@ let freeIndex = 0;
 
 let freeIndexArray;
 
-let world, headerIntArray, headerFloatArray, objectMatricesFloatArray, objectMatricesIntArray, lastTick, getPointer;
+let world,
+  headerIntArray,
+  headerFloatArray,
+  objectMatricesFloatArray,
+  objectMatricesIntArray,
+  lastTick,
+  getPointer,
+  ammoDestroy;
 let usingSharedArrayBuffer = false;
 
 function isBufferConsumed() {
@@ -103,14 +117,20 @@ const tick = () => {
         case MESSAGE_TYPES.ADD_SHAPES:
           addShapes(message);
           break;
+        case MESSAGE_TYPES.DESTROY_SHAPES:
+          destroyShapes(message);
+          break;
         case MESSAGE_TYPES.SET_SHAPES:
           const { shapesUuid, bodyUuids } = message;
 
-          for (const bodyUuid of bodyUuids) {
-            if (bodies[bodyUuid]) {
-              setShapes(bodyUuid, message);
+          if (shapes[shapesUuid]) {
+            for (const bodyUuid of bodyUuids) {
+              if (bodies[bodyUuid]) {
+                setShapes(bodyUuid, message);
+              }
             }
           }
+
           break;
         case MESSAGE_TYPES.UPDATE_SHAPES_SCALE:
           updateShapesScale(message);
@@ -286,11 +306,19 @@ function updateBody({ uuid, options }) {
 }
 
 function removeBody({ uuid }) {
+  if (singleBodyShapes.has(uuid)) {
+    const shapesUuid = singleBodyShapes.get(uuid);
+    destroyShapes({ shapesUuid });
+
+    // This body had its shape created and assign via ADD_SHAPE,
+    // so no other bodies will use this shape and it can be destroyed.
+    singleBodyShapes.delete(uuid);
+  }
+
   delete ptrToIndex[getPointer(bodies[uuid].physicsBody)];
   bodies[uuid].destroy();
   delete bodies[uuid];
   delete matrices[uuid];
-  delete shapes[uuid];
   const index = indexes[uuid];
   freeIndexArray[index] = freeIndex;
   freeIndex = index;
@@ -299,6 +327,21 @@ function removeBody({ uuid }) {
 }
 
 const IDENTITY_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+
+function destroyShapes({ shapesUuid }) {
+  if (!shapes[shapesUuid]) return;
+
+  // Remove shape from existing bodies
+  for (const physicsShape of shapes[shapesUuid]) {
+    for (const body of Object.values(bodies)) {
+      body.removeShape(physicsShape);
+    }
+
+    ammoDestroy(physicsShape);
+  }
+
+  delete shapes[shapesUuid];
+}
 
 function createShapes({ shapesUuid, vertices, matrices, indexes, matrixWorld, options }) {
   shapes[shapesUuid] = createCollisionShapes(
@@ -331,6 +374,7 @@ function addShapes({ bodyUuid, shapesUuid, vertices, matrices, indexes, matrixWo
     bodies[bodyUuid].addShape(shape);
   }
   shapes[shapesUuid] = physicsShapes;
+  singleBodyShapes.set(bodyUuid, shapesUuid);
 }
 
 function updateShapesScale({ shapesUuid, matrixWorld, options }) {
@@ -394,6 +438,7 @@ onmessage = async event => {
 
     AmmoModule().then(Ammo => {
       getPointer = Ammo.getPointer;
+      ammoDestroy = Ammo.destroy;
 
       const maxBodies = event.data.maxBodies ? event.data.maxBodies : BUFFER_CONFIG.MAX_BODIES;
       tempVec3_1 = new Ammo.btVector3(0, 0, 0);
@@ -460,6 +505,16 @@ onmessage = async event => {
         break;
       }
 
+      case MESSAGE_TYPES.DESTROY_SHAPES: {
+        const shapesUuid = event.data.shapesUuid;
+        if (shapes[shapesUuid]) {
+          destroyShapes(event.data);
+        } else {
+          messageQueue.push(event.data);
+        }
+        break;
+      }
+
       case MESSAGE_TYPES.SET_SHAPES: {
         const { shapesUuid, bodyUuids } = event.data;
 
@@ -492,9 +547,16 @@ onmessage = async event => {
         const bodyUuid = event.data.bodyUuid;
         const shapesUuid = event.data.shapesUuid;
         if (bodies[bodyUuid] && shapes[shapesUuid]) {
-          for (let i = 0; i < shapes[shapesUuid].length; i++) {
-            const shape = shapes[shapesUuid][i];
-            bodies[bodyUuid].removeShape(shape);
+          // If this shape was assigned via ADD_SHAPE, destroy it
+          // (which will also remove it from the body)
+          if (singleBodyShapes.get(bodyUuid) === shapesUuid) {
+            destroyShapes({ shapesUuid });
+            singleBodyShapes.delete(bodyUuid);
+          } else {
+            for (let i = 0; i < shapes[shapesUuid].length; i++) {
+              const shape = shapes[shapesUuid][i];
+              bodies[bodyUuid].removeShape(shape);
+            }
           }
         }
         break;
