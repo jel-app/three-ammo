@@ -356,6 +356,14 @@ Body.prototype.syncFromPhysics = (function() {
 
 // Pass in a list of collision shapes and efficiently set them on this body.
 Body.prototype.setShapes = function(collisionShapes) {
+  // Need to reset the local scale before adding new shapes, otherwise those shapes
+  // will start out with wrong scale.
+  //
+  // updateShapes will correct this below.
+  this.localScaling.setValue(1.0, 1.0, 1.0);
+  this.prevScale.set(1.0, 1.0, 1.0);
+  this.compoundShape.setLocalScaling(this.localScaling);
+
   for (let i = 0; i < this.shapes.length; i++) {
     this.compoundShape.removeChildShape(this.shapes[i]);
   }
