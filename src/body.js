@@ -45,10 +45,15 @@ function almostEqualsQuaternion(epsilon, u, v) {
 /**
  * Initializes a body component, assigning it to the physics system and binding listeners for
  * parsing the elements geometry.
+ *
+ * Params:
+ *   instancedShapes: instead of directly adding to the compound shape, create an intermediary btUniformScaleShape
+ *   will allow shape re-use across bodies. (Managed via setShapes)
  */
 function Body(bodyConfig, matrix, world) {
   this.loadedEvent = bodyConfig.loadedEvent ? bodyConfig.loadedEvent : "";
   this.mass = bodyConfig.hasOwnProperty("mass") ? bodyConfig.mass : 1;
+  this.instancedShapes = !!bodyConfig.instancedShapes;
   const worldGravity = world.physicsWorld.getGravity();
   this.gravity = new Ammo.btVector3(worldGravity.x(), worldGravity.y(), worldGravity.z());
   if (bodyConfig.gravity) {
@@ -91,13 +96,18 @@ function Body(bodyConfig, matrix, world) {
 Body.prototype._initBody = (function() {
   const pos = new THREE.Vector3();
   const quat = new THREE.Quaternion();
-  const scale = new THREE.Vector3();
+  const scale = new THREE.Vector3(1, 1, 1);
   return function() {
     this.localScaling = new Ammo.btVector3();
 
     this.matrix.decompose(pos, quat, scale);
 
-    this.localScaling.setValue(scale.x, scale.y, scale.z);
+    if (this.instancedShapes) {
+      this.localScaling.setValue(1, 1, 1);
+    } else {
+      this.localScaling.setValue(scale.x, scale.y, scale.z);
+    }
+
     this.prevScale = new THREE.Vector3(1, 1, 1);
     this.prevNumChildShapes = 0;
 
@@ -162,7 +172,22 @@ Body.prototype.updateShapes = (function() {
       updated = true;
 
       this.localScaling.setValue(this.prevScale.x, this.prevScale.y, this.prevScale.z);
-      this.compoundShape.setLocalScaling(this.localScaling);
+
+      if (!this.instancedShapes) {
+        this.compoundShape.setLocalScaling(this.localScaling);
+      } else {
+        // Instanced shapes need to be destroyed + created to apply new scale.
+        const convexShapes = [];
+
+        if (this.shapes.length > 0) {
+          for (let i = 0; i < this.shapes.length; i++) {
+            const uniformScalingShape = this.shapes[i];
+            convexShapes.push(uniformScalingShape.childShape);
+          }
+
+          this.updateUniformScaleShapes(convexShapes);
+        }
+      }
     }
 
     if (this.shapesChanged) {
@@ -179,8 +204,13 @@ Body.prototype.updateShapes = (function() {
     if (this.world.isDebugEnabled() && (updated || !this.polyHedralFeaturesInitialized)) {
       for (let i = 0; i < this.shapes.length; i++) {
         const collisionShape = this.shapes[i];
-        if (needsPolyhedralInitialization.indexOf(collisionShape.type) !== -1) {
-          collisionShape.initializePolyhedralFeatures(0);
+        let polyShape = collisionShape;
+
+        if (collisionShape.getChildShape) {
+          polyShape = collisionShape.getChildShape();
+        }
+        if (needsPolyhedralInitialization.indexOf(polyShape.type) !== -1) {
+          polyShape.initializePolyhedralFeatures(0);
         }
       }
       this.polyHedralFeaturesInitialized = true;
@@ -354,34 +384,53 @@ Body.prototype.syncFromPhysics = (function() {
   };
 })();
 
-// Pass in a list of collision shapes and efficiently set them on this body.
-Body.prototype.setShapes = function(collisionShapes) {
-  // Need to reset the local scale before adding new shapes, otherwise those shapes
-  // will start out with wrong scale.
-  //
-  // updateShapes will correct this below.
-  this.localScaling.setValue(1.0, 1.0, 1.0);
-  this.prevScale.set(1.0, 1.0, 1.0);
-  this.compoundShape.setLocalScaling(this.localScaling);
+Body.prototype.updateUniformScaleShapes = function(convexShapes) {
+  const scale = this.localScaling.x();
 
   for (let i = 0; i < this.shapes.length; i++) {
-    this.compoundShape.removeChildShape(this.shapes[i]);
+    const scalingShape = this.shapes[i];
+    this.compoundShape.removeChildShape(scalingShape);
+    Ammo.destroy(scalingShape);
   }
 
   this.shapes.length = 0;
 
+  for (const collisionShape of convexShapes) {
+    const scalableShape = new Ammo.btUniformScalingShape(collisionShape, scale);
+
+    // Keep a JS object-ified reference as well to child, which has other properties
+    scalableShape.childShape = collisionShape;
+
+    this.shapes.push(scalableShape);
+    this.compoundShape.addChildShape(collisionShape.localTransform, scalableShape);
+  }
+  console.log("Shapes now", this.shapes.length);
+};
+
+// Pass in a list of convex collision shapes and efficiently set them on this body.
+Body.prototype.setShapes = function(collisionShapes) {
+  if (!this.instancedShapes) {
+    console.warn("setShapes is only permitted on instancedShapes bodies.");
+    return;
+  }
+
+  const convexShapes = [];
+
   for (const collisionShape of collisionShapes) {
-    if (collisionShape.type === SHAPE.MESH && this.type !== TYPE.STATIC) {
-      console.warn("non-static mesh colliders not supported");
+    if (
+      collisionShape.type !== SHAPE.HULL &&
+      collisionShape.type !== SHAPE.HACD &&
+      collisionShape.type !== SHAPE.VACD
+    ) {
+      console.warn("setShapes expects HULL shapes since it allows unique scaling", collisionShape.type);
       continue;
     }
 
-    this.shapes.push(collisionShape);
-    this.compoundShape.addChildShape(collisionShape.localTransform, collisionShape);
+    convexShapes.push(collisionShape);
   }
 
+  this.updateUniformScaleShapes(convexShapes);
   this.shapesChanged = true;
-  this.updateShapes();
 };
 
 Body.prototype.addShape = function(collisionShape) {
