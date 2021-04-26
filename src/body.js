@@ -53,7 +53,8 @@ function almostEqualsQuaternion(epsilon, u, v) {
 function Body(bodyConfig, matrix, world) {
   this.loadedEvent = bodyConfig.loadedEvent ? bodyConfig.loadedEvent : "";
   this.mass = bodyConfig.hasOwnProperty("mass") ? bodyConfig.mass : 1;
-  this.instancedShapes = !!bodyConfig.instancedShapes;
+  this.hasSharedShapes = false;
+
   const worldGravity = world.physicsWorld.getGravity();
   this.gravity = new Ammo.btVector3(worldGravity.x(), worldGravity.y(), worldGravity.z());
   if (bodyConfig.gravity) {
@@ -102,11 +103,7 @@ Body.prototype._initBody = (function() {
 
     this.matrix.decompose(pos, quat, scale);
 
-    if (this.instancedShapes) {
-      this.localScaling.setValue(1, 1, 1);
-    } else {
-      this.localScaling.setValue(scale.x, scale.y, scale.z);
-    }
+    this.localScaling.setValue(1, 1, 1);
 
     this.prevScale = new THREE.Vector3(1, 1, 1);
     this.prevNumChildShapes = 0;
@@ -171,12 +168,7 @@ Body.prototype.updateShapes = (function() {
       this.prevScale.copy(scale);
       updated = true;
 
-      this.localScaling.setValue(this.prevScale.x, this.prevScale.y, this.prevScale.z);
-
-      if (!this.instancedShapes) {
-        this.compoundShape.setLocalScaling(this.localScaling);
-      } else {
-        // Instanced shapes need to be destroyed + created to apply new scale.
+      if (this.hasSharedShapes) {
         const convexShapes = [];
 
         if (this.shapes.length > 0) {
@@ -185,8 +177,10 @@ Body.prototype.updateShapes = (function() {
             convexShapes.push(uniformScalingShape.childShape);
           }
 
-          this.updateUniformScaleShapes(convexShapes);
+          this.updateUniformScaleShapes(convexShapes, scale.x);
         }
+      } else {
+        this.compoundShape.setLocalScaling(this.localScaling);
       }
     }
 
@@ -384,9 +378,7 @@ Body.prototype.syncFromPhysics = (function() {
   };
 })();
 
-Body.prototype.updateUniformScaleShapes = function(convexShapes) {
-  const scale = this.localScaling.x();
-
+Body.prototype.updateUniformScaleShapes = function(convexShapes, scale) {
   for (let i = 0; i < this.shapes.length; i++) {
     const scalingShape = this.shapes[i];
     this.compoundShape.removeChildShape(scalingShape);
@@ -402,36 +394,54 @@ Body.prototype.updateUniformScaleShapes = function(convexShapes) {
     scalableShape.childShape = collisionShape;
 
     this.shapes.push(scalableShape);
-    this.compoundShape.addChildShape(collisionShape.localTransform, scalableShape);
+    const basis = collisionShape.localTransform.getRotation();
+    const origin = collisionShape.localTransform.getOrigin();
+    const newOrigin = new Ammo.btVector3();
+    newOrigin.setX(origin.x() * scale);
+    newOrigin.setY(origin.y() * scale);
+    newOrigin.setZ(origin.z() * scale);
+    const t = new Ammo.btTransform(basis, newOrigin);
+    this.compoundShape.addChildShape(t, scalableShape);
+    Ammo.destroy(t);
+    Ammo.destroy(newOrigin);
   }
-  console.log("Shapes now", this.shapes.length);
 };
 
 // Pass in a list of convex collision shapes and efficiently set them on this body.
-Body.prototype.setShapes = function(collisionShapes) {
-  if (!this.instancedShapes) {
-    console.warn("setShapes is only permitted on instancedShapes bodies.");
-    return;
-  }
+Body.prototype.setShapes = (function() {
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+  const scale = new THREE.Vector3(1, 1, 1);
+  return function(collisionShapes) {
+    const convexShapes = [];
 
-  const convexShapes = [];
+    for (const collisionShape of collisionShapes) {
+      if (
+        collisionShape.type !== SHAPE.BOX &&
+        collisionShape.type !== SHAPE.CONE &&
+        collisionShape.type !== SHAPE.CYLINDER &&
+        collisionShape.type !== SHAPE.CAPSULE &&
+        collisionShape.type !== SHAPE.HULL &&
+        collisionShape.type !== SHAPE.HACD &&
+        collisionShape.type !== SHAPE.VHACD
+      ) {
+        console.warn("setShapes expects convex shapes since it allows unique scaling", collisionShape.type);
+        continue;
+      }
 
-  for (const collisionShape of collisionShapes) {
-    if (
-      collisionShape.type !== SHAPE.HULL &&
-      collisionShape.type !== SHAPE.HACD &&
-      collisionShape.type !== SHAPE.VACD
-    ) {
-      console.warn("setShapes expects HULL shapes since it allows unique scaling", collisionShape.type);
-      continue;
+      convexShapes.push(collisionShape);
     }
 
-    convexShapes.push(collisionShape);
-  }
+    if (!this.hasSharedShapes) {
+      this.hasSharedShapes = true;
+      this.localScaling.setValue(1, 1, 1);
+      this.compoundShape.setLocalScaling(this.localScaling);
+    }
 
-  this.updateUniformScaleShapes(convexShapes);
-  this.shapesChanged = true;
-};
+    this.updateUniformScaleShapes(convexShapes, this.prevScale.x);
+    this.shapesChanged = true;
+  };
+})();
 
 Body.prototype.addShape = function(collisionShape) {
   if (collisionShape.type === SHAPE.MESH && this.type !== TYPE.STATIC) {
@@ -441,17 +451,30 @@ Body.prototype.addShape = function(collisionShape) {
 
   this.shapes.push(collisionShape);
   this.compoundShape.addChildShape(collisionShape.localTransform, collisionShape);
+  this.compoundShape.setLocalScaling(this.localScaling);
   this.shapesChanged = true;
   this.updateShapes();
 };
 
 Body.prototype.removeShape = function(collisionShape) {
-  const index = this.shapes.indexOf(collisionShape);
-  if (this.compoundShape && index !== -1) {
-    this.compoundShape.removeChildShape(this.shapes[index]);
-    this.shapesChanged = true;
-    this.shapes.splice(index, 1);
-    this.updateShapes();
+  if (!this.compoundShape) return;
+
+  for (let i = 0; i < this.shapes.length; i++) {
+    let shape = this.shapes[i];
+
+    if (shape === collisionShape || shape.childShape === collisionShape) {
+      this.compoundShape.removeChildShape(shape);
+
+      // Destroy wrapping uniform scale shape
+      if (shape.childShape) {
+        Ammo.destroy(shape);
+      }
+
+      this.shapesChanged = true;
+      this.shapes.splice(i, 1);
+      this.updateShapes();
+      break;
+    }
   }
 };
 
