@@ -46,9 +46,6 @@ function almostEqualsQuaternion(epsilon, u, v) {
  * Initializes a body component, assigning it to the physics system and binding listeners for
  * parsing the elements geometry.
  *
- * Params:
- *   instancedShapes: instead of directly adding to the compound shape, create an intermediary btUniformScaleShape
- *   will allow shape re-use across bodies. (Managed via setShapes)
  */
 function Body(bodyConfig, matrix, world) {
   this.loadedEvent = bodyConfig.loadedEvent ? bodyConfig.loadedEvent : "";
@@ -409,6 +406,7 @@ Body.prototype.updateUniformScaleShapes = function(convexShapes, scale) {
 };
 
 // Pass in a list of convex collision shapes and efficiently set them on this body.
+// When using this, shapes can be shared across bodies.
 Body.prototype.setShapes = (function() {
   const pos = new THREE.Vector3();
   const quat = new THREE.Quaternion();
