@@ -103,7 +103,7 @@ Body.prototype._initBody = (function() {
 
     this.matrix.decompose(pos, quat, scale);
 
-    this.localScaling.setValue(1, 1, 1);
+    this.localScaling.setValue(scale.x, scale.y, scale.z);
 
     this.prevScale = new THREE.Vector3(1, 1, 1);
     this.prevNumChildShapes = 0;
@@ -180,6 +180,7 @@ Body.prototype.updateShapes = (function() {
           this.updateUniformScaleShapes(convexShapes, scale.x);
         }
       } else {
+        this.localScaling.setValue(this.prevScale.x, this.prevScale.y, this.prevScale.z);
         this.compoundShape.setLocalScaling(this.localScaling);
       }
     }
