@@ -516,30 +516,7 @@ onmessage = async event => {
       }
 
       case MESSAGE_TYPES.SET_SHAPES: {
-        const { shapesUuid, bodyUuids } = event.data;
-
-        if (!shapes[shapesUuid]) {
-          messageQueue.push(event.data);
-        } else {
-          let missingBodyUuids = null;
-
-          for (const bodyUuid of bodyUuids) {
-            if (bodies[bodyUuid]) {
-              setShapes(bodyUuid, event.data);
-            } else {
-              if (missingBodyUuids === null) {
-                missingBodyUuids = new Set();
-              }
-
-              missingBodyUuids.add(bodyUuid);
-            }
-          }
-
-          if (missingBodyUuids !== null) {
-            messageQueue.push({ ...event.data, bodyUuids: missingBodyUuids });
-          }
-        }
-
+        messageQueue.push(event.data);
         break;
       }
 
