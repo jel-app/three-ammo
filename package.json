@@ -20,8 +20,8 @@
   },
   "dependencies": {
     "ammo-debug-drawer": "github:infinitelee/ammo-debug-drawer",
-    "ammo.js": "github:jel-app/ammo.js#jel/master",
-    "three-to-ammo": "github:infinitelee/three-to-ammo#a15da9afc16b834f6c1906ab94e0ab3071e9ff09"
+    "ammo.js": "*",
+    "three-to-ammo": "github:infinitelee/three-to-ammo#9e68a3bbe500988f2dc0096f78c12dabbdaf5548"
   },
   "devDependencies": {
     "eslint": "^6.7.2",
